@@ -26,6 +26,8 @@ import os
 
 from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets
+from qgis.core import Qgis, QgsProject, QgsWkbTypes, QgsPointXY
+from qgis.utils import iface
 
 # This loads your .ui file so that PyQt can populate your plugin with the elements from Qt Designer
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
@@ -48,12 +50,24 @@ class wtyczka_QGISDialog(QtWidgets.QDialog, FORM_CLASS):
 
         
     def calculate_dh(self):
-        selected_layer = self.mMapLayerComboBox.currentLayer()
+        selected_layer = self.mMapLayerComboBox.selectedLayer()
+        if not selected_layer:
+            iface.message().pushMessageBar('Błąd - Nie wybrano warstwy', level=Qgis.Warning)
+            return
         features = selected_layer.selectedFeatures()
-        h_1 = float(features[0]['wysokosc'])
-        h_2 = float(features[1]['wysokosc'])
-        dh = h_2 - h_1
+        if len(features) != 2:
+            iface.message().pushMessageBar('Błąd - Należy wybrać dokładnie dwa punkty', level=Qgis.Warning)
+            return
+        try:
+            h_1 = float(features[0]['wysokosc'])
+            h_2 = float(features[1]['wysokosc'])
+        except KeyError:
+            iface.message().pushMessageBar('Bład - Brak atrybuty "wysokosc" przy wybranych punktach', level=Qgis.Warning)
+            return
+        
+        dh = round(h_2 - h_1, 3)
         self.wynik.setText(f'{dh} m')
+        iface.messageBar().pushMessage("Różnica wysokoci", f"Różnica wysokoci między wybranymi punktami wynosi:{dh}")
         
         
         
@@ -66,7 +80,7 @@ class wtyczka_QGISDialog(QtWidgets.QDialog, FORM_CLASS):
         
     def punkty(self):
         self.label_error.clear()
-        selected_features = self.mMapLayerComboBox.currentLayer().selectedFeatures()
+        selected_features = self.mMapLayerComboBox.selectedLayer().selectedFeatures()
         pkt = []
         for feature in selected_features:
             feature_geometry = feature.geometry().asPoint()
@@ -78,34 +92,36 @@ class wtyczka_QGISDialog(QtWidgets.QDialog, FORM_CLASS):
         return pkt
         
     def pole(self):
-        selected_features = self.mMapLayerComboBox_layers.currentLayer().selectedFeatures()
-        
-        if len(selected_features) < 3:
-            self.label_error.setText('Zaznacz więcej punktów')
+        selected_layer = self.mMapLayerComboBox.currentLayer()
+        if not selected_layer:
+            iface.message().pushMessageBar('Błąd - Nie wybrano warstwy', level=Qgis.Warning)
             return
+        features = selected_layer.selectedFeatures()
+        if len(features) < 3:
+            iface.message().pushMessageBar('Błąd - Należy wybrać dokładnie 3 punkty', level=Qgis.Warning)
+            return
+        selected_features = self.mMapLayerComboBox.currentLayer().selectedFeatures()
         
-        str_punkty = len(selected_features)
         pkt = []
+        id_pkt = []
         for feature in selected_features:
-            feature_geometry = feature.geometry().asPoint()
-            X = feature_geometry.x()
-            Y = feature_geometry.y()
-            pkt.append([X, Y])
-        pkt = self.sortuj_punkty(pkt)
-
-        n = len(pkt)
-        if n < 3:
-            self.wynik.setText('BŁĄD!')
-            pole = 0
+            feature_geometry = feature.geometry()
+            if feature_geometry.isEmpty() or QgsWkbTypes.geometryType(feature_geometry.wkbType()) != QgsWkbTypes.PointGeometry:
+                iface.messageBar().pushMessage("Błąd - Wybrany obiekt nie jest punktem", level=Qgis.Warning)
+                return
+            punkt = feature_geometry.asPoint()
+            pkt.append(QgsPointXY(punkt.x(), punkt.y()))
+            id_pkt.append(feature.id())
+        pole = self.gauss(pkt)
+        iface.messageBar().pushMessage("Wynik", f"Powierzchnia wielokąta o wierzchołkach w punktach wynosi: {pole}", level=Qgis.Success)
+        self.wynik.setText("{:.3f} m^2".format(pole))
         
-        else:
-            pole = 0
-            for i in range(n):
-                P = (pkt[i][0] * pkt[(i+1) % n][1] - pkt[(i-1) % n][1] * pkt[i][0])
-                pole += P
-            
-            pole = 0.5 * abs(pole)
-            poletxt = f'{pole:.3f} [m2]'
-       
-            wynik_str = f'Pole powierzchni figury o wybranych {str_punkty} wierzchołkach wynosi: {pole:.3f} [m2]'
-        return pole, str_punkty
+    def gauss(self, pkt):
+        n = len(pkt)
+        pole = 0.0
+        
+        for i in range(n):
+            x1, y1 = pkt[i].x(), pkt[i].y()
+            x2, y2 = pkt[(i + 1) % n].x(), pkt[(i + 1) % n].y()
+            pole += x1 * y2 - x2 * y1
+        return abs(pole) / 2
