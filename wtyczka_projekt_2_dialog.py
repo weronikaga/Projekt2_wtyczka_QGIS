@@ -22,12 +22,19 @@
  ***************************************************************************/
 """
 
-import os
 
+import os
+import csv
+from math import *
 from qgis.PyQt import uic
 from qgis.PyQt import QtWidgets
-from qgis.core import Qgis, QgsProject, QgsWkbTypes, QgsPointXY
+from qgis.core import Qgis, QgsProject, QgsWkbTypes, QgsPointXY, QgsGeometry, QgsVectorLayer, QgsFields, QgsField, QgsWkbTypes, QgsFeature
 from qgis.utils import iface
+from PyQt5.QtCore import QVariant
+from qgis.PyQt.QtWidgets import QFileDialog, QInputDialog
+from PyQt5.QtWidgets import QMessageBox
+from PyQt5.QtWidgets import QTableWidgetItem
+
 
 # This loads your .ui file so that PyQt can populate your plugin with the elements from Qt Designer
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
@@ -38,6 +45,7 @@ class wtyczka_QGISDialog(QtWidgets.QDialog, FORM_CLASS):
     def __init__(self, parent=None):
         """Constructor."""
         super(wtyczka_QGISDialog, self).__init__(parent)
+        self.tableWidget = QtWidgets.QTableWidget()
         # Set up the user interface from Designer through FORM_CLASS.
         # After self.setupUi() you can access any designer object by doing
         # self.<objectname>, and you can use autoconnect slots - see
@@ -47,27 +55,44 @@ class wtyczka_QGISDialog(QtWidgets.QDialog, FORM_CLASS):
 
         self.licz_przewyzszenie.clicked.connect(self.calculate_dh)
         self.licz_powierzchnie.clicked.connect(self.pole)
-
+        self.rysuj_poligon.clicked.connect(self.poligon)
+        self.wyczysc_wyniki.clicked.connect(self.clear_console)
+        self.odznacz_wszystko.clicked.connect(self.clear_selection)
+        self.wynik_m2.clicked.connect(self.zmien_jednostke_pole)
+        self.wynik_ha.clicked.connect(self.zmien_jednostke_pole)
+        self.wynik_a.clicked.connect(self.zmien_jednostke_pole)
+        self.wczytaj_plik.clicked.connect(self.wczytaj)
+        
         
     def calculate_dh(self):
-        selected_layer = self.mMapLayerComboBox.selectedLayer()
+        selected_layer = self.mMapLayerComboBox.currentLayer()
         if not selected_layer:
-            iface.message().pushMessageBar('Błąd - Nie wybrano warstwy', level=Qgis.Warning)
+            iface.messageBar().pushMessage('Błąd - Nie wybrano warstwy', level=Qgis.Warning)
             return
         features = selected_layer.selectedFeatures()
         if len(features) != 2:
-            iface.message().pushMessageBar('Błąd - Należy wybrać dokładnie dwa punkty', level=Qgis.Warning)
+            iface.messageBar().pushMessage('Błąd - Należy wybrać dokładnie dwa punkty', level=Qgis.Warning)
             return
         try:
             h_1 = float(features[0]['wysokosc'])
             h_2 = float(features[1]['wysokosc'])
         except KeyError:
-            iface.message().pushMessageBar('Bład - Brak atrybuty "wysokosc" przy wybranych punktach', level=Qgis.Warning)
+            iface.messageBar().pushMessage('Bład - Brak atrybuty "wysokosc" przy wybranych punktach', level=Qgis.Warning)
+            return
+        
+        try:
+            lista_nazwa = []
+            nazwa = float(features["nr_punktu"])
+            lista_nazwa.append(nazwa)
+            p_1 = lista_nazwa[0]
+            p_2 = lista_nazwa[1]
+        except KeyError:
+            iface.messageBar().pushMessage('Bład - Brak nazwy', level=Qgis.Warning)
             return
         
         dh = round(h_2 - h_1, 3)
-        self.wynik.setText(f'{dh} m')
-        iface.messageBar().pushMessage("Różnica wysokoci", f"Różnica wysokoci między wybranymi punktami wynosi:{dh}")
+        self.wynik.setText(f'Różnica wysokoci między punktami o numerach {p_1} a {p_2} punktami wynosi:{dh} m')
+        iface.messageBar().pushMessage("Różnica wysokoci", f"Różnica wysokoci między puunktami o numerach {p_1} a {p_2} punktami wynosi:{dh}")
         
         
         
@@ -79,8 +104,13 @@ class wtyczka_QGISDialog(QtWidgets.QDialog, FORM_CLASS):
         
         
     def punkty(self):
-        self.label_error.clear()
-        selected_features = self.mMapLayerComboBox.selectedLayer().selectedFeatures()
+
+        selected_layer = self.mMapLayerComboBox.currentLayer()
+        if not selected_layer:
+            iface.messageBar().pushMessage('Błąd - Nie wybrano warstwy', level=Qgis.Warning)
+            return
+        selected_features = selected_layer.selectedFeatures()
+        
         pkt = []
         for feature in selected_features:
             feature_geometry = feature.geometry().asPoint()
@@ -94,13 +124,15 @@ class wtyczka_QGISDialog(QtWidgets.QDialog, FORM_CLASS):
     def pole(self):
         selected_layer = self.mMapLayerComboBox.currentLayer()
         if not selected_layer:
-            iface.message().pushMessageBar('Błąd - Nie wybrano warstwy', level=Qgis.Warning)
+            iface.messageBar().pushMessage('Błąd - Nie wybrano warstwy', level=Qgis.Warning)
             return
         features = selected_layer.selectedFeatures()
         if len(features) < 3:
-            iface.message().pushMessageBar('Błąd - Należy wybrać dokładnie 3 punkty', level=Qgis.Warning)
+            iface.messageBar().pushMessage('Błąd - Należy wybrać dokładnie 3 punkty', level=Qgis.Warning)
             return
         selected_features = self.mMapLayerComboBox.currentLayer().selectedFeatures()
+        
+        str_punkty = len(features) 
         
         pkt = []
         id_pkt = []
@@ -113,8 +145,9 @@ class wtyczka_QGISDialog(QtWidgets.QDialog, FORM_CLASS):
             pkt.append(QgsPointXY(punkt.x(), punkt.y()))
             id_pkt.append(feature.id())
         pole = self.gauss(pkt)
-        iface.messageBar().pushMessage("Wynik", f"Powierzchnia wielokąta o wierzchołkach w punktach wynosi: {pole}", level=Qgis.Success)
+        iface.messageBar().pushMessage("Wynik", f"Powierzchnia wielokąta o wierzchołkach wynosi: {pole}", level=Qgis.Success)
         self.wynik.setText("{:.3f} m^2".format(pole))
+        return (pole, str_punkty)
         
     def gauss(self, pkt):
         n = len(pkt)
@@ -125,3 +158,163 @@ class wtyczka_QGISDialog(QtWidgets.QDialog, FORM_CLASS):
             x2, y2 = pkt[(i + 1) % n].x(), pkt[(i + 1) % n].y()
             pole += x1 * y2 - x2 * y1
         return abs(pole) / 2
+    
+    def poligon(self):
+        xy = self.punkty()
+        if len(xy) < 3:
+            iface.messageBar().pushMessage("Błąd - Wybrany obiekt nie jest punktem", level=Qgis.Warning)
+            return
+    
+        punkty = [QgsPointXY(point[0], point[1]) for point in xy]
+        punkty.append(punkty[0])
+
+        pol_geom = QgsGeometry.fromPolygonXY([punkty])
+        
+        if not pol_geom.isGeosValid():
+            self.wynik.setText('Nieprawidłowa geometria poligonu')
+            return
+        
+        crs = self.mMapLayerComboBox.currentLayer().crs()
+        poligon = QgsVectorLayer("Polygon?crs=" + crs.toWkt(), "poligon", "memory")
+        
+        if not poligon.isValid():
+            self.wynik.setText('Nie udało się utworzyć warstwy poligonowej')
+            return
+        
+        pol_provider = poligon.dataProvider()
+
+        pol_fields = QgsFields()
+        pol_fields.append(QgsField("nazwa", QVariant.String))
+    
+        pol_provider.addAttributes(pol_fields)
+    
+        poligon.updateFields()
+        
+        pol_feature = QgsFeature(pol_fields)
+        pol_feature.setGeometry(pol_geom)
+    
+        if not pol_provider.addFeature(pol_feature):
+            self.label_poligon.setText('Nie udało się dodać funkcji do warstwy poligonowej')
+    
+        QgsProject.instance().addMapLayer(poligon)
+    
+        #self.canvas.refresh()
+        iface.messageBar().pushMessage("Poligon został utworzony", level=Qgis.Info)
+        #self.label_poligon.setText('Poligon utworzony')
+        
+        
+    def sortuj_punkty(self, xy):
+        punkt_ref = [sum(p[0] for p in xy) / len(xy), sum(p[1] for p in xy) / len(xy)]
+        xy_sort = sorted(xy, key=lambda p: self.dobierz_kat(p, punkt_ref))
+        return xy_sort
+    
+    def dobierz_kat(self, p, punkt_ref):
+        dx = p[0] - punkt_ref[0]
+        dy = p[1] - punkt_ref[1]
+        kat = atan2(dy,dx)
+        return kat
+    
+    
+    def clear_console(self):
+        iface.messageBar().clearWidgets()
+        self.wynik.clear()
+        self.wynik_m.setChecked(False)
+        self.wynik_ha.setChecked(False)
+        self.wynik_a.setChecked(False)
+        self.wynik_m2.setChecked(False)
+        
+    def clear_selection(self):
+        layer = self.mMapLayerComboBox.currentLayer()
+        if layer is not None:
+            layer.removeSelection()
+            
+            
+    def zmien_jednostke_pole(self):
+        pole_m, punkty_str = self.pole()
+        if self.wynik_a.isChecked():
+            pole_a = pole_m/100
+            self.wynik.setText(f'{pole_a:.3f} [a]')
+            wynik_str = f'Pole powierzchni figury o wybranych {punkty_str} wierzchołkach wynosi: {pole_a:.3f} [a]'
+        elif self.wynik_ha.isChecked():
+            pole_ha = pole_m /10000
+            self.wynik.setText(f'{pole_ha:.3f} [ha]')
+            wynik_str = f'Pole powierzchni figury o wybranych {punkty_str} wierzchołkach wynosi: {pole_ha:.3f} [ha]'
+        elif self.wynik_m2 .isChecked():
+            self.wynik.setText(f'{pole_m:.3f} [m2]')
+            wynik_str = f'Pole powierzchni figury o wybranych {punkty_str} wierzchołkach wynosi: {pole_m:.3f} [m2]'
+        else:
+            self.wynik.setText(f'{pole_m:.3f} [m2]')
+            wynik_str = f'Pole powierzchni figury o wybranych {punkty_str} wierzchołkach wynosi: {pole_m:.3f} [m2]'
+        iface.messageBar().pushMessage("Wynik", wynik_str, level=Qgis.Info)
+    
+    
+    def wczytaj(self):
+        uklad, ok = QInputDialog.getItem(self, "Wybierz układ współrzędnych", "Wybierz układ:", ["PL-1992", "PL-2000"], 0, False)
+        if ok:
+            dialog = QFileDialog()
+            dialog.setFileMode(QFileDialog.AnyFile)
+            dialog.setNameFilter("Dokumenty tekstowe (*.txt);;Pliki CSV (*.csv)")
+
+            if not dialog.exec_():
+                return
+            wybrany_plik = dialog.selectedFiles()[0]
+            
+            if wybrany_plik.endswith(".txt"):
+                with open(wybrany_plik, 'r') as plik:
+                    lines = plik.readlines()
+                    wiersze = [line.strip().split(' ') for line in lines]
+        
+            elif wybrany_plik.endswith(".csv"):
+                with open(wybrany_plik, 'r') as plik:
+                    csv_reader = csv.reader(plik)
+                    wiersze = [row for row in csv_reader]
+                
+                
+            if len(wiersze) == 0 or len(wiersze[0]) < 2:
+                QMessageBox.warning(self, "Nieodpowiedni plik", "Wybrany plik ma więcej niż 2 kolumny danych.")
+                return
+            # Utworzenie tabeli o odpowiedniej liczbie wierszy i kolumn
+            self.tableWidget.setRowCount(len(wiersze))
+            self.tableWidget.setColumnCount(len(wiersze[0]))
+                
+                # Wypełnij tabelę danymi
+            for i, wiersz in enumerate(wiersze):
+                for j, wartosc in enumerate(wiersz):
+                    p = QTableWidgetItem(wartosc)
+                    self.tableWidget.setItem(i, j, p)
+                    
+            if uklad == "PL-1992":
+                uklad_epsg = "EPSG:2180"
+            elif uklad == "PL-2000":
+                strefa, ok = QInputDialog.getItem(self, "Wybierz strefę PL-2000", "Wybierz strefę:", ["Strefa 5", "Strefa 6", "Strefa 7", "Strefa 8"], 0, False)
+                if not ok:
+                    return
+                if strefa == "Strefa 5":
+                    uklad_epsg = "EPSG:2176"
+                elif strefa == "Strefa 6":
+                    uklad_epsg = "EPSG:2177"
+                elif strefa == "Strefa 7":
+                    uklad_epsg = "EPSG:2178"
+                elif strefa == "Strefa 8":
+                    uklad_epsg = "EPSG:2179"
+                
+             # Dodanie warstwy do projektu QGIS
+            uri = "Point?crs={}".format(uklad_epsg)
+            layer = QgsVectorLayer(uri, "Nowa warstwa", "memory")
+            provider = layer.dataProvider()
+        
+            for wiersz in wiersze:
+                if wiersz[0] and wiersz[1]:  # Sprawdź, czy wartości nie są puste
+                    try:
+                        y = float(wiersz[0])
+                        x = float(wiersz[1])
+                        feature = QgsFeature()
+                        point = QgsPointXY(x, y)
+                        geometry = QgsGeometry.fromPointXY(point)
+                        feature.setGeometry(geometry)
+                        provider.addFeature(feature)
+                    except ValueError:
+                        QMessageBox.warning(self, "Błąd konwersji", "Wystąpił błąd podczas konwersji współrzędnych.")
+        
+            QgsProject.instance().addMapLayer(layer)
+    
