@@ -62,6 +62,7 @@ class wtyczka_QGISDialog(QtWidgets.QDialog, FORM_CLASS):
         self.wynik_ha.clicked.connect(self.zmien_jednostke_pole)
         self.wynik_a.clicked.connect(self.zmien_jednostke_pole)
         self.wczytaj_plik.clicked.connect(self.wczytaj)
+        self.wybierz_pkt.clicked.connect(self.wybierz_punkty)
         
         
     def calculate_dh(self):
@@ -82,17 +83,32 @@ class wtyczka_QGISDialog(QtWidgets.QDialog, FORM_CLASS):
         
         try:
             lista_nazwa = []
-            nazwa = float(features["nr_punktu"])
-            lista_nazwa.append(nazwa)
-            p_1 = lista_nazwa[0]
-            p_2 = lista_nazwa[1]
-        except KeyError:
-            iface.messageBar().pushMessage('Bład - Brak nazwy', level=Qgis.Warning)
+        
+            # Iterate through the list of QgsFeature objects
+            for feature in features:
+                # Use the attribute method to get the value of "nr_punktu"
+                nazwa = feature.attribute("nr_punktu")
+                
+                if nazwa is not None:
+                    lista_nazwa.append(nazwa)
+            
+            # Ensure lista_nazwa has at least two elements
+            if len(lista_nazwa) < 2:
+                raise IndexError("Not enough elements in lista_nazwa")
+            
+            p_1 = int(lista_nazwa[0])
+            p_2 = int(lista_nazwa[1])
+        except IndexError:
+            iface.messageBar().pushMessage('Błąd - Niewystarczająca liczba elementów w lista_nazwa', level=Qgis.Warning)
             return
+        except ValueError:
+            iface.messageBar().pushMessage('Błąd - Nie można przekonwertować wartości na int', level=Qgis.Warning)
+            return
+
         
         dh = round(h_2 - h_1, 3)
-        self.wynik.setText(f'Różnica wysokoci między punktami o numerach {p_1} a {p_2} punktami wynosi:{dh} m')
-        iface.messageBar().pushMessage("Różnica wysokoci", f"Różnica wysokoci między puunktami o numerach {p_1} a {p_2} punktami wynosi:{dh}")
+        self.wynik.setText(f'Różnica wysokoci między punktami o numerach {p_1} a {p_2} punktami wynosi: {dh} m')
+        iface.messageBar().pushMessage("Różnica wysokoci", f"Różnica wysokoci między puunktami o numerach {p_1} a {p_2} punktami wynosi: {dh} m")
         
         
         
@@ -135,6 +151,7 @@ class wtyczka_QGISDialog(QtWidgets.QDialog, FORM_CLASS):
         str_punkty = len(features) 
         
         pkt = []
+        nazwy_pkt = []
         id_pkt = []
         for feature in selected_features:
             feature_geometry = feature.geometry()
@@ -144,9 +161,17 @@ class wtyczka_QGISDialog(QtWidgets.QDialog, FORM_CLASS):
             punkt = feature_geometry.asPoint()
             pkt.append(QgsPointXY(punkt.x(), punkt.y()))
             id_pkt.append(feature.id())
+            nazwa = feature.attribute("nr_punktu")
+            if nazwa is not None:
+                nazwy_pkt.append(str(nazwa))  # Ensure nazwa is a string
+            else:
+                nazwy_pkt.append(f"Point {feature.id()}")
+                
         pole = self.gauss(pkt)
-        iface.messageBar().pushMessage("Wynik", f"Powierzchnia wielokąta o wierzchołkach wynosi: {pole}", level=Qgis.Success)
-        self.wynik.setText("{:.3f} m^2".format(pole))
+        pole_1 = round(pole, 3)
+        nazwy_str = ', '.join(nazwy_pkt)
+        iface.messageBar().pushMessage("Wynik", f"Powierzchnia wielokąta o wierzchołkach w punkatch {nazwy_str} wynosi: {pole_1}", level=Qgis.Success)
+        self.wynik.setText(f"Powierzchnia wielokąta o wierzchołkach w punkatch {nazwy_str} wynosi: {pole_1} m^2".format(pole))
         return (pole, str_punkty)
         
     def gauss(self, pkt):
@@ -247,7 +272,56 @@ class wtyczka_QGISDialog(QtWidgets.QDialog, FORM_CLASS):
             wynik_str = f'Pole powierzchni figury o wybranych {punkty_str} wierzchołkach wynosi: {pole_m:.3f} [m2]'
         iface.messageBar().pushMessage("Wynik", wynik_str, level=Qgis.Info)
     
-    
+    def wybierz_punkty(self):
+        # Pobierz listę warstw dostępnych w projekcie QGIS
+        layers = QgsProject.instance().mapLayers().values()
+        
+        # Utwórz listę nazw warstw
+        layer_names = [layer.name() for layer in layers]
+        
+        # Zwróć listę warstw, jeśli nie ma żadnych warstw, wyświetl komunikat i zakończ funkcję
+        if not layer_names:
+            iface.messageBar().pushMessage('Brak warstw w projekcie', level=Qgis.Warning)
+            return
+        
+        # Wyświetl okno dialogowe z listą warstw
+        selected_layer_name, ok = QInputDialog.getItem(self, "Wybierz warstwę", "Wybierz warstwę:", layer_names, 0, False)
+        
+        # Jeśli użytkownik anulował wybór lub nie wybrał żadnej warstwy, zakończ funkcję
+        if not ok:
+            return
+        
+        # Pobierz warstwę na podstawie wybranej nazwy
+        selected_layer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
+        
+        # Sprawdź, czy warstwa została poprawnie pobrana
+        if not selected_layer:
+            iface.messageBar().pushMessage(f'Nie znaleziono warstwy o nazwie {selected_layer_name}', level=Qgis.Warning)
+            return
+        
+        # Komunikat zachęcający do zaznaczenia nowych punktów
+        iface.messageBar().pushMessage('Zaznacz nowe punkty na mapie', level=Qgis.Info)
+        
+        # Włączenie narzędzia do zaznaczania punktów na mapie
+        iface.actionSelect().trigger()
+        
+        # Pobranie zaznaczonych punktów po zakończeniu zaznaczania
+        features = selected_layer.selectedFeatures()
+        if len(features) == 0:
+            iface.messageBar().pushMessage('Błąd - Nie wybrano żadnych nowych punktów', level=Qgis.Warning)
+            return
+        
+        selected_points = []
+        for feature in features:
+            point = feature.geometry().asPoint()
+            selected_points.append((point.x(), point.y()))
+        
+        # Możesz teraz wykorzystać listę selected_points do dalszego przetwarzania
+        # np. wyświetlenia, zapisania lub analizy nowych punktów
+        
+        # Tutaj możesz dodać kod do obsługi nowych punktów, np. wyświetlenie ich współrzędnych:
+        coords_str = "\n".join([f"X: {point[0]}, Y: {point[1]}" for point in selected_points])
+        QMessageBox.information(self, "Nowo zaznaczone punkty", f"Nowo zaznaczone punkty na warstwie {selected_layer_name}:\n{coords_str}")
     def wczytaj(self):
         uklad, ok = QInputDialog.getItem(self, "Wybierz układ współrzędnych", "Wybierz układ:", ["PL-1992", "PL-2000"], 0, False)
         if ok:
@@ -317,4 +391,3 @@ class wtyczka_QGISDialog(QtWidgets.QDialog, FORM_CLASS):
                         QMessageBox.warning(self, "Błąd konwersji", "Wystąpił błąd podczas konwersji współrzędnych.")
         
             QgsProject.instance().addMapLayer(layer)
-    
