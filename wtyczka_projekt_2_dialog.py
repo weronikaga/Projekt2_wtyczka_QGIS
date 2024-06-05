@@ -111,12 +111,7 @@ class wtyczka_QGISDialog(QtWidgets.QDialog, FORM_CLASS):
         iface.messageBar().pushMessage("Różnica wysokoci", f"Różnica wysokoci między puunktami o numerach {p_1} a {p_2} punktami wynosi: {dh} m")
         
         
-        
-    # def calculate_area(self):
-    #     selected_layer = self.mMapLayerComboBox.currentLayer()
-    #     features = selected_layer.selectedFeatures()
-    #     x = float(features[0]['wysokosc'])
-    #     y = float(features[1]['wysokosc'])
+
         
         
     def punkty(self):
@@ -138,42 +133,44 @@ class wtyczka_QGISDialog(QtWidgets.QDialog, FORM_CLASS):
         return pkt
         
     def pole(self):
-        selected_layer = self.mMapLayerComboBox.currentLayer()
-        if not selected_layer:
-            iface.messageBar().pushMessage('Błąd - Nie wybrano warstwy', level=Qgis.Warning)
-            return
-        features = selected_layer.selectedFeatures()
-        if len(features) < 3:
-            iface.messageBar().pushMessage('Błąd - Należy wybrać dokładnie 3 punkty', level=Qgis.Warning)
-            return
-        selected_features = self.mMapLayerComboBox.currentLayer().selectedFeatures()
-        
-        str_punkty = len(features) 
-        
-        pkt = []
-        nazwy_pkt = []
-        id_pkt = []
-        for feature in selected_features:
-            feature_geometry = feature.geometry()
-            if feature_geometry.isEmpty() or QgsWkbTypes.geometryType(feature_geometry.wkbType()) != QgsWkbTypes.PointGeometry:
-                iface.messageBar().pushMessage("Błąd - Wybrany obiekt nie jest punktem", level=Qgis.Warning)
+            selected_layer = self.mMapLayerComboBox.currentLayer()
+            if not selected_layer:
+                iface.messageBar().pushMessage('Błąd - Nie wybrano warstwy', level=Qgis.Warning)
                 return
-            punkt = feature_geometry.asPoint()
-            pkt.append(QgsPointXY(punkt.x(), punkt.y()))
-            id_pkt.append(feature.id())
-            nazwa = feature.attribute("nr_punktu")
-            if nazwa is not None:
-                nazwy_pkt.append(str(nazwa))  # Ensure nazwa is a string
-            else:
-                nazwy_pkt.append(f"Point {feature.id()}")
-                
-        pole = self.gauss(pkt)
-        pole_1 = round(pole, 3)
-        nazwy_str = ', '.join(nazwy_pkt)
-        iface.messageBar().pushMessage("Wynik", f"Powierzchnia wielokąta o wierzchołkach w punkatch {nazwy_str} wynosi: {pole_1}", level=Qgis.Success)
-        self.wynik.setText(f"Powierzchnia wielokąta o wierzchołkach w punkatch {nazwy_str} wynosi: {pole_1} m^2".format(pole))
-        return (pole, str_punkty)
-        
+            features = selected_layer.selectedFeatures()
+            if len(features) < 3:
+                iface.messageBar().pushMessage('Błąd - Należy wybrać dokładnie 3 punkty', level=Qgis.Warning)
+                return
+            selected_features = self.mMapLayerComboBox.currentLayer().selectedFeatures()
+            
+            str_punkty = len(features) 
+            
+            pkt = []
+            nazwy_pkt = []
+            id_pkt = []
+            for feature in selected_features:
+                feature_geometry = feature.geometry()
+                if feature_geometry.isEmpty() or QgsWkbTypes.geometryType(feature_geometry.wkbType()) != QgsWkbTypes.PointGeometry:
+                    iface.messageBar().pushMessage("Błąd - Wybrany obiekt nie jest punktem", level=Qgis.Warning)
+                    return
+                punkt = feature_geometry.asPoint()
+                pkt.append(QgsPointXY(punkt.x(), punkt.y()))
+                id_pkt.append(feature.id())
+                nazwa = feature.attribute("nr_punktu")
+                if nazwa is not None:
+                    nazwy_pkt.append(str(nazwa))  # Ensure nazwa is a string
+                else:
+                    nazwy_pkt.append(f"Point {feature.id()}")
+                    
+            pole = self.gauss(pkt)
+            pole_1 = round(pole, 3)
+            nazwy_str = ', '.join(nazwy_pkt)
+            iface.messageBar().pushMessage("Wynik", f"Powierzchnia wielokąta o wierzchołkach w punkatch {nazwy_str} wynosi: {pole_1}", level=Qgis.Success)
+            self.wynik.setText(f"Powierzchnia wielokąta o wierzchołkach w punkatch {nazwy_str} wynosi: {pole_1} m^2".format(pole))
+            return (pole, str_punkty)
+
+
+
     def gauss(self, pkt):
         n = len(pkt)
         pole = 0.0
@@ -273,39 +270,39 @@ class wtyczka_QGISDialog(QtWidgets.QDialog, FORM_CLASS):
         iface.messageBar().pushMessage("Wynik", wynik_str, level=Qgis.Info)
     
     def wybierz_punkty(self):
-        # Pobierz listę warstw dostępnych w projekcie QGIS
+        
         layers = QgsProject.instance().mapLayers().values()
         
-        # Utwórz listę nazw warstw
+    
         layer_names = [layer.name() for layer in layers]
         
-        # Zwróć listę warstw, jeśli nie ma żadnych warstw, wyświetl komunikat i zakończ funkcję
+        
         if not layer_names:
             iface.messageBar().pushMessage('Brak warstw w projekcie', level=Qgis.Warning)
             return
         
-        # Wyświetl okno dialogowe z listą warstw
+ 
         selected_layer_name, ok = QInputDialog.getItem(self, "Wybierz warstwę", "Wybierz warstwę:", layer_names, 0, False)
         
-        # Jeśli użytkownik anulował wybór lub nie wybrał żadnej warstwy, zakończ funkcję
+
         if not ok:
             return
         
-        # Pobierz warstwę na podstawie wybranej nazwy
+
         selected_layer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
         
-        # Sprawdź, czy warstwa została poprawnie pobrana
+
         if not selected_layer:
             iface.messageBar().pushMessage(f'Nie znaleziono warstwy o nazwie {selected_layer_name}', level=Qgis.Warning)
             return
         
-        # Komunikat zachęcający do zaznaczenia nowych punktów
+
         iface.messageBar().pushMessage('Zaznacz nowe punkty na mapie', level=Qgis.Info)
         
-        # Włączenie narzędzia do zaznaczania punktów na mapie
+
         iface.actionSelect().trigger()
         
-        # Pobranie zaznaczonych punktów po zakończeniu zaznaczania
+ 
         features = selected_layer.selectedFeatures()
         if len(features) == 0:
             iface.messageBar().pushMessage('Błąd - Nie wybrano żadnych nowych punktów', level=Qgis.Warning)
@@ -316,19 +313,18 @@ class wtyczka_QGISDialog(QtWidgets.QDialog, FORM_CLASS):
             point = feature.geometry().asPoint()
             selected_points.append((point.x(), point.y()))
         
-        # Możesz teraz wykorzystać listę selected_points do dalszego przetwarzania
-        # np. wyświetlenia, zapisania lub analizy nowych punktów
-        
-        # Tutaj możesz dodać kod do obsługi nowych punktów, np. wyświetlenie ich współrzędnych:
+
         coords_str = "\n".join([f"X: {point[0]}, Y: {point[1]}" for point in selected_points])
         QMessageBox.information(self, "Nowo zaznaczone punkty", f"Nowo zaznaczone punkty na warstwie {selected_layer_name}:\n{coords_str}")
+   
+    
     def wczytaj(self):
         uklad, ok = QInputDialog.getItem(self, "Wybierz układ współrzędnych", "Wybierz układ:", ["PL-1992", "PL-2000"], 0, False)
         if ok:
             dialog = QFileDialog()
             dialog.setFileMode(QFileDialog.AnyFile)
             dialog.setNameFilter("Dokumenty tekstowe (*.txt);;Pliki CSV (*.csv)")
-
+    
             if not dialog.exec_():
                 return
             wybrany_plik = dialog.selectedFiles()[0]
@@ -347,15 +343,22 @@ class wtyczka_QGISDialog(QtWidgets.QDialog, FORM_CLASS):
             if len(wiersze) == 0 or len(wiersze[0]) < 2:
                 QMessageBox.warning(self, "Nieodpowiedni plik", "Wybrany plik ma więcej niż 2 kolumny danych.")
                 return
+            
+            # Utwórz tabelę atrybutów z nazwami kolumn "X", "Y" i "nr_punktu"
+            self.tableWidget.setColumnCount(3)
+            self.tableWidget.setHorizontalHeaderLabels(["X", "Y", "nr_punktu"])
+            
             # Utworzenie tabeli o odpowiedniej liczbie wierszy i kolumn
             self.tableWidget.setRowCount(len(wiersze))
-            self.tableWidget.setColumnCount(len(wiersze[0]))
+            self.tableWidget.setColumnCount(len(wiersze[0]) + 1)  # Dodajemy jedną kolumnę na nr_punktu
                 
-                # Wypełnij tabelę danymi
+            # Wypełnij tabelę danymi
             for i, wiersz in enumerate(wiersze):
                 for j, wartosc in enumerate(wiersz):
                     p = QTableWidgetItem(wartosc)
                     self.tableWidget.setItem(i, j, p)
+                # Ustaw numer punktu
+                self.tableWidget.setItem(i, len(wiersze[0]), QTableWidgetItem(str(i+1)))
                     
             if uklad == "PL-1992":
                 uklad_epsg = "EPSG:2180"
@@ -372,12 +375,16 @@ class wtyczka_QGISDialog(QtWidgets.QDialog, FORM_CLASS):
                 elif strefa == "Strefa 8":
                     uklad_epsg = "EPSG:2179"
                 
-             # Dodanie warstwy do projektu QGIS
+            # Dodanie warstwy do projektu QGIS
             uri = "Point?crs={}".format(uklad_epsg)
             layer = QgsVectorLayer(uri, "Nowa warstwa", "memory")
             provider = layer.dataProvider()
+            
+            # Dodaj atrybuty x, y i nr_punktu do warstwy
+            provider.addAttributes([QgsField("x", QVariant.Double), QgsField("y", QVariant.Double), QgsField("nr_punktu", QVariant.Int)])
+            layer.updateFields()
         
-            for wiersz in wiersze:
+            for i, wiersz in enumerate(wiersze):
                 if wiersz[0] and wiersz[1]:  # Sprawdź, czy wartości nie są puste
                     try:
                         y = float(wiersz[0])
@@ -386,8 +393,12 @@ class wtyczka_QGISDialog(QtWidgets.QDialog, FORM_CLASS):
                         point = QgsPointXY(x, y)
                         geometry = QgsGeometry.fromPointXY(point)
                         feature.setGeometry(geometry)
+                        
+                        # Dodaj współrzędne jako atrybuty
+                        feature.setAttributes([x, y, i+1])
+                        
                         provider.addFeature(feature)
                     except ValueError:
                         QMessageBox.warning(self, "Błąd konwersji", "Wystąpił błąd podczas konwersji współrzędnych.")
-        
+            
             QgsProject.instance().addMapLayer(layer)
