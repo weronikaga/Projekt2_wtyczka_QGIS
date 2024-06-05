@@ -9,11 +9,11 @@ Wtyczka Projekt 2 to narzędzie stworzone w środowisku QGIS z wykorzystaniem j�
 - **Rysowanie Poligonów**: Użytkownik może wybrać punkty na mapie i utworzyć na ich podstawie poligon.
 - **Wczytanie pliku**: Użytkownik może wczytać plik ze współrzędnymi punktów w układzie PL-1992 lub PL-2000.
 - **Czyszczenie otrzymanych wyników**: Użytownik może wyczyścić otrzymany wynik z konsoli.
-- **Odznaczenie zaznaczonych punktó**: Użytownik może odznaczyć zaznaczone punkty.
+- **Odznaczenie zaznaczonych punktów**: Użytownik może odznaczyć zaznaczone punkty.
 - **Wybór nowych punktów**: Po odznaczeniu punktów, użytkownik może zminimalizować okno wtyczki i następnie zaznaczyć nowe punkty i te punkty za pomocą przycisku "Wybierz punkty", wczytać nowowybrane punkty do wtyczki. 
 
 ## W przypadku obliczeń różnicy wysokości oraz pola powierzchi program pozwala na zmianę jednostki wyniku:
-- rożnica wysokości: metry, centymetry, milimetry
+- rożnica wysokości: metry
 - pole powierzchni: metry kwadratowe, ary, hektary
 
 
@@ -32,6 +32,8 @@ Wtyczka Projekt 2 to narzędzie stworzone w środowisku QGIS z wykorzystaniem j�
 - PyQt5.QtCore
 - qgis.PyQt
 - qgis.core
+
+## Instrukcja obsługi
 
 ## Autorzy
 Plugin został stworzony przez [Twoje Imię/Nazwisko/Twórcę].
