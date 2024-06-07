@@ -36,7 +36,6 @@ from PyQt5.QtWidgets import QMessageBox
 from PyQt5.QtWidgets import QTableWidgetItem
 
 
-# This loads your .ui file so that PyQt can populate your plugin with the elements from Qt Designer
 FORM_CLASS, _ = uic.loadUiType(os.path.join(
     os.path.dirname(__file__), 'wtyczka_projekt_2_dialog_base.ui'))
 
@@ -53,19 +52,44 @@ class wtyczka_QGISDialog(QtWidgets.QDialog, FORM_CLASS):
         # #widgets-and-dialogs-with-auto-connect
         self.setupUi(self)
 
-        self.licz_przewyzszenie.clicked.connect(self.calculate_dh)
+        self.licz_przewyzszenie.clicked.connect(self.licz_przewyzszenie)
         self.licz_powierzchnie.clicked.connect(self.pole)
         self.rysuj_poligon.clicked.connect(self.poligon)
-        self.wyczysc_wyniki.clicked.connect(self.clear_console)
-        self.odznacz_wszystko.clicked.connect(self.clear_selection)
-        self.wynik_m2.clicked.connect(self.zmien_jednostke_pole)
-        self.wynik_ha.clicked.connect(self.zmien_jednostke_pole)
-        self.wynik_a.clicked.connect(self.zmien_jednostke_pole)
+        self.wyczysc_wyniki.clicked.connect(self.czysc_wynik)
+        self.odznacz_wszystko.clicked.connect(self.czysc_wybor)
+        self.wynik_m2.clicked.connect(self.zmien_jednostke_pola)
+        self.wynik_ha.clicked.connect(self.zmien_jednostke_pola)
+        self.wynik_a.clicked.connect(self.zmien_jednostke_pola)
         self.wczytaj_plik.clicked.connect(self.wczytaj)
         self.wybierz_pkt.clicked.connect(self.wybierz_punkty)
         
         
-    def calculate_dh(self):
+    def licz_przewyzszenie(self):
+        """
+        Funkcja licz_przewyzszenie oblicza różnicę wysokości między dwoma wybranymi punktami z warstwy w QGIS.
+        
+        Etapy działania funkcji:
+        
+        1. Pobranie wybranej warstwy z QGIS.
+        2. Sprawdzenie, czy wybrano warstwę. Jeśli nie, wyświetla komunikat o błędzie.
+        3. Pobranie wybranych cech (punktów) z warstwy.
+        4. Sprawdzenie, czy wybrano dokładnie dwa punkty. Jeśli nie, wyświetla komunikat o błędzie.
+        5. Pobranie wartości atrybutów 'wysokosc' dla obu punktów. Jeśli brakuje atrybutu, wyświetla komunikat o błędzie.
+        6. Pobranie atrybutów 'nr_punktu' dla obu punktów i przekształcenie ich na wartości całkowite. Jeśli operacja się nie powiedzie, wyświetla odpowiedni komunikat o błędzie.
+        7. Obliczenie różnicy wysokości (dh) między punktami.
+        8. Wyświetlenie wyniku obliczeń w interfejsie użytkownika oraz jako komunikat w QGIS.
+        
+        Komunikaty błędów:
+        - Błąd - Nie wybrano warstwy: jeśli nie wybrano żadnej warstwy.
+        - Błąd - Należy wybrać dokładnie dwa punkty: jeśli nie wybrano dokładnie dwóch punktów.
+        - Błąd - Brak atrybutu "wysokosc" przy wybranych punktach: jeśli brakuje atrybutu 'wysokosc' przy którymś z wybranych punktów.
+        - Błąd - Niewystarczająca liczba elementów w lista_nazwa: jeśli nie uda się pobrać atrybutu 'nr_punktu' dla obu punktów.
+        - Błąd - Nie można przekonwertować wartości na int: jeśli nie uda się przekształcić wartości 'nr_punktu' na liczbę całkowitą.
+        
+        Wynik:
+        - Wyświetlenie różnicy wysokości (dh) między punktami w interfejsie użytkownika oraz jako komunikat w QGIS.
+        """
+        
         selected_layer = self.mMapLayerComboBox.currentLayer()
         if not selected_layer:
             iface.messageBar().pushMessage('Błąd - Nie wybrano warstwy', level=Qgis.Warning)
@@ -83,18 +107,12 @@ class wtyczka_QGISDialog(QtWidgets.QDialog, FORM_CLASS):
         
         try:
             lista_nazwa = []
-        
-            # Iterate through the list of QgsFeature objects
             for feature in features:
-                # Use the attribute method to get the value of "nr_punktu"
                 nazwa = feature.attribute("nr_punktu")
-                
                 if nazwa is not None:
                     lista_nazwa.append(nazwa)
-            
-            # Ensure lista_nazwa has at least two elements
             if len(lista_nazwa) < 2:
-                raise IndexError("Not enough elements in lista_nazwa")
+                raise IndexError("Błąd - Niewystarczająca liczba elementów w lista_nazwa")
             
             p_1 = int(lista_nazwa[0])
             p_2 = int(lista_nazwa[1])
@@ -111,15 +129,30 @@ class wtyczka_QGISDialog(QtWidgets.QDialog, FORM_CLASS):
         iface.messageBar().pushMessage("Różnica wysokoci", f"Różnica wysokoci między puunktami o numerach {p_1} a {p_2} punktami wynosi: {dh} m")
         
         
-        
-    # def calculate_area(self):
-    #     selected_layer = self.mMapLayerComboBox.currentLayer()
-    #     features = selected_layer.selectedFeatures()
-    #     x = float(features[0]['wysokosc'])
-    #     y = float(features[1]['wysokosc'])
-        
-        
     def punkty(self):
+        """
+         Funkcja punkty pobiera wybrane punkty z wybranej warstwy w QGIS, przetwarza ich współrzędne,
+         a następnie sortuje i zwraca listę tych punktów.
+         
+         Etapy działania funkcji:
+         
+         1. Pobranie wybranej warstwy z QGIS.
+         2. Sprawdzenie, czy wybrano warstwę. Jeśli nie, wyświetla komunikat o błędzie.
+         3. Pobranie wybranych cech (punktów) z warstwy.
+         4. Przetworzenie współrzędnych geometrycznych każdego punktu do listy [x, y].
+         5. Dodanie przetworzonych współrzędnych do listy `pkt`.
+         6. Sortowanie listy punktów przy użyciu metody `self.sortuj_punkty`.
+         7. Zwrócenie posortowanej listy punktów.
+         
+         Komunikaty błędów:
+         - Błąd - Nie wybrano warstwy: jeśli nie wybrano żadnej warstwy.
+         
+         Parametry:
+         - self: Instancja klasy, w której znajduje się metoda.
+         
+         Zwraca:
+         - pkt: Lista posortowanych punktów w formacie [[x1, y1], [x2, y2], ..., [xn, yn]].
+         """
 
         selected_layer = self.mMapLayerComboBox.currentLayer()
         if not selected_layer:
@@ -138,6 +171,36 @@ class wtyczka_QGISDialog(QtWidgets.QDialog, FORM_CLASS):
         return pkt
         
     def pole(self):
+        """
+        Funkcja pole oblicza powierzchnię wielokąta utworzonego z trzech wybranych punktów z warstwy w QGIS.
+        
+        Etapy działania funkcji:
+        
+        1. Pobranie wybranej warstwy z QGIS.
+        2. Sprawdzenie, czy wybrano warstwę. Jeśli nie, wyświetla komunikat o błędzie.
+        3. Pobranie wybranych cech (punktów) z warstwy.
+        4. Sprawdzenie, czy wybrano dokładnie trzy punkty. Jeśli nie, wyświetla komunikat o błędzie.
+        5. Inicjalizacja list `pkt`, `nazwy_pkt` i `id_pkt`.
+        6. Przetworzenie geometrii wybranych punktów:
+           - Sprawdzenie, czy geometria jest punktem. Jeśli nie, wyświetla komunikat o błędzie.
+           - Pobranie współrzędnych punktu i dodanie ich do listy `pkt`.
+           - Pobranie atrybutu "nr_punktu" i dodanie go do listy `nazwy_pkt`. Jeśli brak atrybutu, dodanie ID punktu jako nazwy.
+        7. Obliczenie powierzchni wielokąta przy użyciu metody `self.gauss`.
+        8. Zaokrąglenie wyniku powierzchni do trzech miejsc po przecinku.
+        9. Wyświetlenie wyniku w interfejsie użytkownika oraz jako komunikat w QGIS.
+        10. Zwrócenie obliczonej powierzchni oraz liczby punktów.
+        
+        Komunikaty błędów:
+        - Błąd - Nie wybrano warstwy: jeśli nie wybrano żadnej warstwy.
+        - Błąd - Należy wybrać dokładnie 3 punkty: jeśli nie wybrano dokładnie trzech punktów.
+        - Błąd - Wybrany obiekt nie jest punktem: jeśli którykolwiek z wybranych obiektów nie jest punktem.
+        
+        Parametry:
+        - self: Instancja klasy, w której znajduje się metoda.
+        
+        Zwraca:
+        - tuple: Zawiera obliczoną powierzchnię wielokąta (pole) oraz liczbę wybranych punktów (str_punkty).
+        """
         selected_layer = self.mMapLayerComboBox.currentLayer()
         if not selected_layer:
             iface.messageBar().pushMessage('Błąd - Nie wybrano warstwy', level=Qgis.Warning)
@@ -163,7 +226,7 @@ class wtyczka_QGISDialog(QtWidgets.QDialog, FORM_CLASS):
             id_pkt.append(feature.id())
             nazwa = feature.attribute("nr_punktu")
             if nazwa is not None:
-                nazwy_pkt.append(str(nazwa))  # Ensure nazwa is a string
+                nazwy_pkt.append(str(nazwa))  
             else:
                 nazwy_pkt.append(f"Point {feature.id()}")
                 
@@ -175,6 +238,23 @@ class wtyczka_QGISDialog(QtWidgets.QDialog, FORM_CLASS):
         return (pole, str_punkty)
         
     def gauss(self, pkt):
+        """
+        Funkcja gauss oblicza powierzchnię wielokąta na podstawie współrzędnych jego wierzchołków
+        przy użyciu algorytmu Gaussa (wzoru na pole powierzchni wielokąta).
+        
+        Parametry:
+        - self: Instancja klasy, w której znajduje się metoda.
+        - pkt (list): Lista punktów wielokąta, gdzie każdy punkt jest instancją QgsPointXY i zawiera współrzędne x i y.
+        
+        Zwraca:
+        - float: Powierzchnia wielokąta.
+        
+        Algorytm:
+        1. Inicjalizacja zmiennej `pole` na wartość 0.0.
+        2. Iteracja przez wszystkie punkty wielokąta.
+        3. Dla każdego punktu obliczenie iloczynu współrzędnych z następnym punktem i aktualizacja zmiennej `pole`.
+        4. Zwrócenie połowy wartości bezwzględnej zmiennej `pole`, co daje powierzchnię wielokąta.
+        """
         n = len(pkt)
         pole = 0.0
         
@@ -185,6 +265,34 @@ class wtyczka_QGISDialog(QtWidgets.QDialog, FORM_CLASS):
         return abs(pole) / 2
     
     def poligon(self):
+        """
+        Funkcja poligon tworzy poligon na podstawie współrzędnych punktów wybranych z warstwy w QGIS, 
+        a następnie dodaje go jako nową warstwę wektorową do projektu.
+        
+        Etapy działania funkcji:
+        
+        1. Pobranie współrzędnych punktów przy użyciu metody `punkty()`.
+        2. Sprawdzenie, czy liczba punktów jest wystarczająca do utworzenia poligonu (co najmniej 3). Jeśli nie, wyświetla komunikat o błędzie.
+        3. Utworzenie listy punktów `QgsPointXY` na podstawie współrzędnych i zamknięcie poligonu (dodanie pierwszego punktu na koniec listy).
+        4. Utworzenie geometrii poligonu z listy punktów.
+        5. Sprawdzenie, czy geometria poligonu jest prawidłowa. Jeśli nie, wyświetla komunikat o błędzie.
+        6. Utworzenie nowej warstwy wektorowej typu poligon z odpowiednim układem współrzędnych (CRS).
+        7. Sprawdzenie, czy warstwa poligonowa została poprawnie utworzona. Jeśli nie, wyświetla komunikat o błędzie.
+        8. Dodanie atrybutów do nowej warstwy poligonowej.
+        9. Utworzenie nowej cechy z geometrią poligonu i dodanie jej do warstwy.
+        10. Sprawdzenie, czy cecha została poprawnie dodana do warstwy. Jeśli nie, wyświetla komunikat o błędzie.
+        11. Dodanie nowej warstwy poligonowej do projektu QGIS.
+        12. Wyświetlenie komunikatu o pomyślnym utworzeniu poligonu.
+        
+        Komunikaty błędów:
+        - Błąd - Wybrany obiekt nie jest punktem: jeśli liczba punktów jest mniejsza niż 3.
+        - Nieprawidłowa geometria poligonu: jeśli geometria utworzonego poligonu nie jest prawidłowa.
+        - Nie udało się utworzyć warstwy poligonowej: jeśli nie uda się utworzyć nowej warstwy wektorowej typu poligon.
+        - Nie udało się dodać funkcji do warstwy poligonowej: jeśli nie uda się dodać cechy (geometrii) do warstwy poligonowej.
+        
+        Parametry:
+        - self: Instancja klasy, w której znajduje się metoda.
+        """
         xy = self.punkty()
         if len(xy) < 3:
             iface.messageBar().pushMessage("Błąd - Wybrany obiekt nie jest punktem", level=Qgis.Warning)
@@ -223,24 +331,72 @@ class wtyczka_QGISDialog(QtWidgets.QDialog, FORM_CLASS):
     
         QgsProject.instance().addMapLayer(poligon)
     
-        #self.canvas.refresh()
         iface.messageBar().pushMessage("Poligon został utworzony", level=Qgis.Info)
-        #self.label_poligon.setText('Poligon utworzony')
         
         
     def sortuj_punkty(self, xy):
+        """
+        Funkcja sortuj_punkty sortuje punkty w kolejności zgodnej z ruchem wskazówek zegara na podstawie kąta
+        względem środka masy (centroidu) punktów.
+        
+        Parametry:
+        - self: Instancja klasy, w której znajduje się metoda.
+        - xy (list): Lista punktów w formacie [[x1, y1], [x2, y2], ..., [xn, yn]].
+        
+        Zwraca:
+        - list: Lista punktów posortowanych w kolejności zgodnej z ruchem wskazówek zegara.
+        
+        Algorytm:
+        1. Obliczenie współrzędnych centroidu (punkt_ref) jako średniej arytmetycznej współrzędnych x i y wszystkich punktów.
+        2. Sortowanie listy punktów `xy` na podstawie kąta względem punktu odniesienia (punkt_ref) przy użyciu metody `self.dobierz_kat`.
+        3. Zwrócenie posortowanej listy punktów.
+        """
         punkt_ref = [sum(p[0] for p in xy) / len(xy), sum(p[1] for p in xy) / len(xy)]
         xy_sort = sorted(xy, key=lambda p: self.dobierz_kat(p, punkt_ref))
         return xy_sort
     
     def dobierz_kat(self, p, punkt_ref):
+        """
+        Funkcja dobierz_kat oblicza kąt między danym punktem a punktem odniesienia (centroidem) 
+        względem osi X w układzie współrzędnych.
+        
+        Parametry:
+        - self: Instancja klasy, w której znajduje się metoda.
+        - p (list): Lista współrzędnych punktu w formacie [x, y].
+        - punkt_ref (list): Lista współrzędnych punktu odniesienia (centroidu) w formacie [x, y].
+        
+        Zwraca:
+        - float: Kąt (w radianach) między wektorem od punktu odniesienia do danego punktu a osią X.
+        
+        Algorytm:
+        1. Obliczenie różnicy w współrzędnych x i y między danym punktem a punktem odniesienia.
+        2. Obliczenie kąta przy użyciu funkcji `atan2` z biblioteki matematycznej, która zwraca kąt między wektorem a osią X.
+        
+        Uwagi:
+        - Funkcja `atan2(dy, dx)` zwraca wartość kąta w zakresie od -π do π, co umożliwia rozróżnienie kierunków na płaszczyźnie.
+        """
         dx = p[0] - punkt_ref[0]
         dy = p[1] - punkt_ref[1]
         kat = atan2(dy,dx)
         return kat
     
     
-    def clear_console(self):
+    def czysc_wynik(self):
+        """
+        Funkcja czysc_wynik resetuje widżety interfejsu użytkownika związane z wyświetlaniem wyników
+        oraz czyści komunikaty w pasku wiadomości QGIS.
+        
+        Etapy działania funkcji:
+        
+        1. Usunięcie wszystkich widżetów z paska wiadomości QGIS przy użyciu `iface.messageBar().clearWidgets()`.
+        2. Wyczyść pole tekstowe `self.wynik`.
+        3. Odznaczenie opcji wyboru jednostek wyników: `self.wynik_m`, `self.wynik_ha`, `self.wynik_a`, `self.wynik_m2`.
+        
+        Parametry:
+        - self: Instancja klasy, w której znajduje się metoda.
+        
+        Funkcja nie zwraca żadnych wartości.
+        """
         iface.messageBar().clearWidgets()
         self.wynik.clear()
         self.wynik_m.setChecked(False)
@@ -248,13 +404,46 @@ class wtyczka_QGISDialog(QtWidgets.QDialog, FORM_CLASS):
         self.wynik_a.setChecked(False)
         self.wynik_m2.setChecked(False)
         
-    def clear_selection(self):
+    def czysc_wybor(self):
+        """
+        Funkcja czysc_wybor usuwa zaznaczenie cech w bieżącej warstwie wybranej w QGIS.
+        
+        Etapy działania funkcji:
+        
+        1. Pobranie bieżącej warstwy z `mMapLayerComboBox`.
+        2. Sprawdzenie, czy warstwa jest wybrana. Jeśli nie, funkcja kończy działanie.
+        3. Usunięcie zaznaczenia wszystkich cech w bieżącej warstwie przy użyciu `layer.removeSelection()`.
+        
+        Parametry:
+        - self: Instancja klasy, w której znajduje się metoda.
+        
+        Funkcja nie zwraca żadnych wartości.
+        """
         layer = self.mMapLayerComboBox.currentLayer()
         if layer is not None:
             layer.removeSelection()
             
             
-    def zmien_jednostke_pole(self):
+    def zmien_jednostke_pola(self):
+        """
+        Funkcja zmien_jednostke_pola przelicza pole powierzchni figury na różne jednostki (metry kwadratowe, ary, hektary)
+        w zależności od wybranej opcji i wyświetla wynik w odpowiednim formacie.
+        
+        Etapy działania funkcji:
+        
+        1. Wywołanie metody `self.pole()` w celu obliczenia pola powierzchni figury w metrach kwadratowych oraz uzyskania liczby wierzchołków.
+        2. Sprawdzenie, która z opcji wyboru jednostek (metry kwadratowe, ary, hektary) jest zaznaczona:
+            - Jeśli zaznaczona jest opcja `wynik_a` (ary), przeliczenie pola na ary i ustawienie odpowiedniego tekstu.
+            - Jeśli zaznaczona jest opcja `wynik_ha` (hektary), przeliczenie pola na hektary i ustawienie odpowiedniego tekstu.
+            - Jeśli zaznaczona jest opcja `wynik_m2` (metry kwadratowe), ustawienie tekstu z polem w metrach kwadratowych.
+            - Jeśli żadna opcja nie jest zaznaczona, ustawienie tekstu z polem w metrach kwadratowych jako domyślne.
+        3. Wyświetlenie wyniku w odpowiednim polu tekstowym oraz w pasku wiadomości QGIS.
+        
+        Parametry:
+        - self: Instancja klasy, w której znajduje się metoda.
+        
+        Funkcja nie zwraca żadnych wartości.
+        """
         pole_m, punkty_str = self.pole()
         if self.wynik_a.isChecked():
             pole_a = pole_m/100
@@ -273,39 +462,54 @@ class wtyczka_QGISDialog(QtWidgets.QDialog, FORM_CLASS):
         iface.messageBar().pushMessage("Wynik", wynik_str, level=Qgis.Info)
     
     def wybierz_punkty(self):
-        # Pobierz listę warstw dostępnych w projekcie QGIS
+        """
+        Funkcja wybierz_punkty umożliwia użytkownikowi wybór warstwy z punktami w bieżącym projekcie QGIS
+        i zaznaczenie nowych punktów na tej warstwie.
+        
+        Etapy działania funkcji:
+        
+        1. Pobranie wszystkich warstw z bieżącego projektu QGIS.
+        2. Utworzenie listy nazw warstw.
+        3. Sprawdzenie, czy istnieją warstwy w projekcie. Jeśli nie, wyświetlenie komunikatu o braku warstw i zakończenie funkcji.
+        4. Wyświetlenie okna dialogowego umożliwiającego użytkownikowi wybór warstwy.
+        5. Sprawdzenie, czy użytkownik dokonał wyboru warstwy. Jeśli nie, zakończenie funkcji.
+        6. Pobranie wybranej warstwy na podstawie jej nazwy.
+        7. Sprawdzenie, czy udało się pobrać warstwę o podanej nazwie. Jeśli nie, wyświetlenie komunikatu o błędzie i zakończenie funkcji.
+        8. Wyświetlenie komunikatu o konieczności zaznaczenia nowych punktów na mapie.
+        9. Aktywacja narzędzia zaznaczania punktów na warstwie.
+        10. Pobranie wszystkich nowo zaznaczonych punktów na warstwie.
+        11. Sprawdzenie, czy zaznaczono jakiekolwiek nowe punkty. Jeśli nie, wyświetlenie komunikatu o błędzie i zakończenie funkcji.
+        12. Zapisanie współrzędnych nowo zaznaczonych punktów.
+        13. Utworzenie komunikatu z informacją o nowo zaznaczonych punktach i ich współrzędnych oraz wyświetlenie go.
+        
+        Parametry:
+        - self: Instancja klasy, w której znajduje się metoda.
+        
+        Funkcja nie zwraca żadnych wartości.
+        """
         layers = QgsProject.instance().mapLayers().values()
-        
-        # Utwórz listę nazw warstw
+    
         layer_names = [layer.name() for layer in layers]
-        
-        # Zwróć listę warstw, jeśli nie ma żadnych warstw, wyświetl komunikat i zakończ funkcję
+    
         if not layer_names:
             iface.messageBar().pushMessage('Brak warstw w projekcie', level=Qgis.Warning)
             return
-        
-        # Wyświetl okno dialogowe z listą warstw
+    
         selected_layer_name, ok = QInputDialog.getItem(self, "Wybierz warstwę", "Wybierz warstwę:", layer_names, 0, False)
         
-        # Jeśli użytkownik anulował wybór lub nie wybrał żadnej warstwy, zakończ funkcję
         if not ok:
             return
         
-        # Pobierz warstwę na podstawie wybranej nazwy
         selected_layer = QgsProject.instance().mapLayersByName(selected_layer_name)[0]
         
-        # Sprawdź, czy warstwa została poprawnie pobrana
         if not selected_layer:
             iface.messageBar().pushMessage(f'Nie znaleziono warstwy o nazwie {selected_layer_name}', level=Qgis.Warning)
             return
         
-        # Komunikat zachęcający do zaznaczenia nowych punktów
         iface.messageBar().pushMessage('Zaznacz nowe punkty na mapie', level=Qgis.Info)
         
-        # Włączenie narzędzia do zaznaczania punktów na mapie
         iface.actionSelect().trigger()
         
-        # Pobranie zaznaczonych punktów po zakończeniu zaznaczania
         features = selected_layer.selectedFeatures()
         if len(features) == 0:
             iface.messageBar().pushMessage('Błąd - Nie wybrano żadnych nowych punktów', level=Qgis.Warning)
@@ -315,14 +519,32 @@ class wtyczka_QGISDialog(QtWidgets.QDialog, FORM_CLASS):
         for feature in features:
             point = feature.geometry().asPoint()
             selected_points.append((point.x(), point.y()))
-        
-        # Możesz teraz wykorzystać listę selected_points do dalszego przetwarzania
-        # np. wyświetlenia, zapisania lub analizy nowych punktów
-        
-        # Tutaj możesz dodać kod do obsługi nowych punktów, np. wyświetlenie ich współrzędnych:
+
         coords_str = "\n".join([f"X: {point[0]}, Y: {point[1]}" for point in selected_points])
         QMessageBox.information(self, "Nowo zaznaczone punkty", f"Nowo zaznaczone punkty na warstwie {selected_layer_name}:\n{coords_str}")
+    
     def wczytaj(self):
+        """
+        Funkcja wczytaj umożliwia użytkownikowi wczytanie danych z pliku tekstowego lub CSV
+        i wyświetlenie ich w tabeli, a następnie utworzenie warstwy punktowej na podstawie wczytanych danych.
+        
+        Etapy działania funkcji:
+        
+        1. Wyświetlenie okna dialogowego umożliwiającego użytkownikowi wybór układu współrzędnych.
+        2. Wyświetlenie okna dialogowego do wyboru pliku tekstowego lub CSV.
+        3. Sprawdzenie, czy użytkownik wybrał plik. Jeśli nie, zakończenie funkcji.
+        4. W zależności od rozszerzenia pliku, wczytanie danych do listy `wiersze`.
+        5. Sprawdzenie, czy wczytane dane zawierają co najmniej dwa wiersze i dwa punkty. Jeśli nie, wyświetlenie komunikatu o błędzie i zakończenie funkcji.
+        6. Ustawienie liczby wierszy i kolumn w tabeli oraz wypełnienie jej danymi.
+        7. W zależności od wybranego układu współrzędnych, przypisanie odpowiedniego EPSG do `uklad_epsg`.
+        8. Utworzenie warstwy punktowej na podstawie wczytanych danych.
+        9. Dodanie warstwy do bieżącego projektu QGIS.
+        
+        Parametry:
+        - self: Instancja klasy, w której znajduje się metoda.
+        
+        Funkcja nie zwraca żadnych wartości.
+        """
         uklad, ok = QInputDialog.getItem(self, "Wybierz układ współrzędnych", "Wybierz układ:", ["PL-1992", "PL-2000"], 0, False)
         if ok:
             dialog = QFileDialog()
@@ -347,11 +569,10 @@ class wtyczka_QGISDialog(QtWidgets.QDialog, FORM_CLASS):
             if len(wiersze) == 0 or len(wiersze[0]) < 2:
                 QMessageBox.warning(self, "Nieodpowiedni plik", "Wybrany plik ma więcej niż 2 kolumny danych.")
                 return
-            # Utworzenie tabeli o odpowiedniej liczbie wierszy i kolumn
+
             self.tableWidget.setRowCount(len(wiersze))
             self.tableWidget.setColumnCount(len(wiersze[0]))
                 
-                # Wypełnij tabelę danymi
             for i, wiersz in enumerate(wiersze):
                 for j, wartosc in enumerate(wiersz):
                     p = QTableWidgetItem(wartosc)
@@ -372,13 +593,12 @@ class wtyczka_QGISDialog(QtWidgets.QDialog, FORM_CLASS):
                 elif strefa == "Strefa 8":
                     uklad_epsg = "EPSG:2179"
                 
-             # Dodanie warstwy do projektu QGIS
             uri = "Point?crs={}".format(uklad_epsg)
             layer = QgsVectorLayer(uri, "Nowa warstwa", "memory")
             provider = layer.dataProvider()
         
             for wiersz in wiersze:
-                if wiersz[0] and wiersz[1]:  # Sprawdź, czy wartości nie są puste
+                if wiersz[0] and wiersz[1]: 
                     try:
                         y = float(wiersz[0])
                         x = float(wiersz[1])
