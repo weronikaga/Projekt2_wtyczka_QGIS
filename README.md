@@ -23,10 +23,10 @@ Wtyczka Projekt 2 to narzędzie stworzone w środowisku QGIS z wykorzystaniem j�
 1. **Instalacja Wtyczki**: 
    W celu zapewnienia sprawnego działania wtyczki zalecamy zainstalowanie plików znajdujących się w repozytorium w katalogu plugings w folderze QGisa, aby znaleźć dokładną lokalizację tego katalogu, można skorzystać z instrukcji poniżej:
    ![image](https://github.com/weronikaga/Projekt2_wtyczka_QGIS/assets/150865197/934bbf93-c16f-4cd3-8df0-2fb913258fee)
-   W wybranym katalogu zalecamy stworzenie folderu z nazwą wtyczki i przekopiowaniu do niego wszystkich plików znajdujących się w repozytorium.
+     W wybranym katalogu zalecamy stworzenie folderu z nazwą wtyczki i przekopiowaniu do niego wszystkich plików znajdujących się w repozytorium.
 3. **Uruchomienie Wtyczki**: Po instalacji, uruchom wtyczkę z menu `Wtyczki > Wtyczka Projekt 2`. Warto na tym etapie mieć otwarty projekt, na którym będziemy wykonywać dalsze działania związane z wtyczką.
    ![Zrzut ekranu 2024-06-07 120937](https://github.com/weronikaga/Projekt2_wtyczka_QGIS/assets/150865197/b7b52db2-303b-4627-8f43-2a1184ce3346)
-Po wyborze wtyczki wyświetli się nastepujące okno:
+  Po wyborze wtyczki wyświetli się nastepujące okno:
 ![image](https://github.com/weronikaga/Projekt2_wtyczka_QGIS/assets/150865197/c3e78e8d-fa37-4369-a0e3-e7f1073de2db)
 5. **Wybór Warstwy**: Wybierz warstwę, na której chcesz wykonywać operacje.
    ![image](https://github.com/weronikaga/Projekt2_wtyczka_QGIS/assets/150865197/8d1ef136-58c3-4391-b826-dbfb0b96f50d)
